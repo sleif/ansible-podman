@@ -60,7 +60,7 @@
       become_user: "{{ podman_user if podman_rootless | bool else omit }}"
       containers.podman.podman_secret:
         state: present
-        name: "{{ item.name }}"
+        name: "{{ item.name | split(',') | first }}"
         data: "{{ item.data }}"
         skip_existing: true
       loop: "{{ _container.secrets | d([]) }}"
@@ -133,6 +133,7 @@
         command: "{{ _container.command | default(omit) }}"
         dns_servers: "{{ _container.dns_servers | default(omit) }}"
         env: "{{ _container.env | default(omit) }}"
+        healthcheck: "{{ _container.healthcheck | default(omit) }}"
         hostname: "{{ _container.hostname | d(_container.name) if not _container.pod | d('') is truthy else omit }}"
         image: "{{ _container.build_required | d(false) | bool | ternary('localhost__', '') }}{{ _container.image.name ~ ':' ~ _container.image.tag }}"
         label: "{{ _container.label | default(omit) }}"
