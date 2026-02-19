@@ -132,6 +132,7 @@
         capabilities: "{{ _container.capabilities | d([]) }}"
         command: "{{ _container.command | default(omit) }}"
         dns_servers: "{{ _container.dns_servers | default(omit) }}"
+        expose: "{{ _container.expose | default(omit) }}"
         env: "{{ _container.env | default(omit) }}"
         healthcheck: "{{ _container.healthcheck | default(omit) }}"
         hostname: "{{ _container.hostname | d(_container.name) if not _container.pod | d('') is truthy else omit }}"
