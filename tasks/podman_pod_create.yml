@@ -69,11 +69,11 @@
     # - debug: var=_quadlet_file_status
     # - pause:
 
-    - name: enumerate _pod_create_changed for {{ pod_name }}
+    - name: enumerate _pod_create_changed for {{ pod_name | default('(no pod defined)') }}
       ansible.builtin.set_fact:
         _pod_create_changed: "{{ true if _pod_create_changed | d(false) | bool or _pod_create_quadlet.changed | bool else false }}"
 
-    - name: debug _container_create_changed for {{ pod_name }}
+    - name: debug _container_create_changed for {{ pod_name | default('(no pod defined)') }}
       ansible.builtin.debug:
         msg: "pod creation for {{ pod_name }} has{{ _pod_create_changed | bool | ternary('', ' not') }} changed."
 

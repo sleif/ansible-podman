@@ -116,7 +116,7 @@
   register: filecontext
   with_items:
     - {target: '{{ podman_user_home }}(/.+)?', setype: 'user_home_dir_t', state: 'present'}
-  when: ansible_selinux and ansible_selinux.status == "enabled"
+  when: ansible_facts.selinux is truthy and ansible_facts.selinux.status == "enabled"
 
 # - ansible.builtin.debug:
 #     msg: "{{ filecontext.results[0] }}"
