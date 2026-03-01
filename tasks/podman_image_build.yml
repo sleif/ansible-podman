@@ -41,6 +41,8 @@
           [Build]
           File={{ _container_storage_dir_base_local }}/build/{{ _container_name }}/Containerfile
           ImageTag=localhost__{{ _image_name }}:{{ _image_tag }}
+          [Service]
+          {{ 'Environment="TMPDIR=' ~ _build_dir ~ '"' if _build_dir is defined else omit }}
         # owner: "{{ _owner }}"
         # group: "{{ _group }}"
         mode: "0600"

@@ -1,0 +1,57 @@
+---
+# Network create operation
+
+# Required network definition
+#
+# podman_networks
+#   - podman_network_name: 'podman_net1'
+#     podman_network_subnet: '10.77.0.0/15'
+#     podman_network_gateway: '10.77.0.1'
+#     podman_network_iprange: '10.77.0.0/16'
+#     podman_network_ipv6: 'false'
+#   - podman_network_name: 'podman_net2'
+#     podman_network_subnet: '10.98.0.0/16'
+#     podman_network_gateway: '10.98.0.1'
+#     podman_network_iprange: '10.98.0.0/24'
+#     podman_network_ipv6: 'true'
+
+#- name: reset _network_create_changed for {{ _network.name }}
+#  ansible.builtin.set_fact:
+#    _network_create_changed: false
+# Necessary??
+
+- name: Include podman_init_vars.yml from sleif.podman
+  ansible.builtin.include_tasks: "{{ lookup('first_found', params) }}"
+  vars:
+    params:
+      files: sleif.podman/tasks/includes/podman_init_vars.yml
+      paths: "{{ lookup('config', 'DEFAULT_ROLES_PATH') }}"
+
+- name: Network create block
+  become: "{{ podman_rootless | d(true) | bool }}"
+  become_user: "{{ podman_user if podman_rootless | d(true) | bool else omit }}"
+  tags:
+    - podman_network_create
+  environment:
+    XDG_RUNTIME_DIR: "{{ _xdg_runtime_dir if podman_rootless | d(true) | bool else omit }}"
+  block:
+    - name: Podman network create {{ podman_network_name }}
+      containers.podman.podman_network:
+        name: "{{ podman_network_name }}"
+        driver: 'bridge'
+        internal: "{{ podman_network_internal | d(false) }}"
+        # ip_range: "{{ podman_network_iprange }}"
+        subnet: "{{ podman_network_subnet }}"
+        gateway: "{{ podman_network_gateway }}"
+        disable_dns: "{{ podman_network_disabledns | d(false) }}"
+        ipv6: "{{ podman_network_ipv6 | d(false) }}"
+        # recreate: true
+        state: quadlet
+      register: _quadlet_file_status
+
+    - name: Start the systemd network unit in proper context
+      ansible.builtin.systemd_service:
+        name: "{{ podman_network_name ~ '-network' }}"
+        daemon_reload: true
+        scope: "{{ _systemd_scope }}"
+        state: "started"

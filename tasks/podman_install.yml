@@ -9,7 +9,7 @@
     # enablerepo: "copr:copr.fedorainfracloud.org:rhcontainerbot:podman-next"
     state: latest
 
-- name: Setup bash completion
+- name: Install podman | Setup bash completion
   ansible.builtin.command: podman completion -f /etc/bash_completion.d/podman bash
   args:
     creates: /etc/bash_completion.d/podman
@@ -23,12 +23,12 @@
 #     - pre_tasks
 #     - podman
 
-- name: Create the podman group
+- name: Install podman | Create the podman group
   ansible.builtin.group:
     name: "{{ podman_group }}"
     state: present
 
-- name: Create the podman user
+- name: Install podman | Create the podman user
   ansible.builtin.user:
     name: "{{ podman_user }}"
     state: present
@@ -36,13 +36,13 @@
     home: "{{ podman_user_home }}"
     createhome: true
 
-- name: Add podman user to the podman group
+- name: Install podman | Add podman user to the podman group
   ansible.builtin.user:
     name: "{{ podman_user }}"
     groups: "{{ podman_group }}"
     append: true
 
-- name: Find uid of user
+- name: Install podman | Find uid of user
   become: true
   become_user: "{{ podman_user }}"
   ansible.builtin.command: "id -u"
@@ -50,19 +50,19 @@
   check_mode: false
   changed_when: false
 
-- name: Set XDG_RUNTIME_DIR in podman user .bashrc
+- name: Install podman | Set XDG_RUNTIME_DIR in podman user .bashrc
   become: true
   become_user: "{{ podman_user }}"
   ansible.builtin.lineinfile:
     path: "{{ podman_user_home + '/.bashrc' }}"
     line: "{{ 'export XDG_RUNTIME_DIR=/run/user/' + _container_run_as_uid.stdout }}"
 
-- name: Enable systemd linger mode for podman user
+- name: Install podman | Enable systemd linger mode for podman user
   ansible.builtin.command:
     cmd: loginctl enable-linger {{ podman_user }}
     creates: "{{ '/var/lib/systemd/linger/' + podman_user }}"
 
-- name: Create podman /var/lib/containers equivalent for rootless operations
+- name: Install podman | Create podman /var/lib/containers equivalent for rootless operations
   ansible.builtin.file:
     path: "{{ podman_user_home + '/.local/share/containers' }}"
     state: directory
@@ -71,14 +71,14 @@
     mode: '0700'
   register: _container_dir
 
-- name: Substitute file contexts for path podman .local/share/containers with /var/lib/containers
+- name: Install podman | Substitute file contexts for path podman .local/share/containers with /var/lib/containers
   community.general.sefcontext:
     target: "{{ podman_user_home + '/.local/share/containers' }}"
     substitute: /var/lib/containers
     state: present
   register: _container_dir_substitute
 
-- name: Run restore context for .local/share/containers with /var/lib/containers to reload selinux
+- name: Install podman | Run restore context for .local/share/containers with /var/lib/containers to reload selinux
   ansible.builtin.command:
     cmd: restorecon -F -R -v {{ podman_user_home + '/.local/share/containers' }}
   when:  # noqa: no-handler
@@ -87,7 +87,7 @@
   register: _result
   changed_when: _result.rc != 0
 
-- name: Create container_storage_dir_base and container_storage_dir_base_local for rootfull container
+- name: Install podman | Create container_storage_dir_base and container_storage_dir_base_local for rootfull container
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
@@ -96,7 +96,7 @@
     - "{{ container_storage_dir_base }}"
     - "{{ container_storage_dir_base_local }}"
 
-- name: Create container_storage_dir_base and container_storage_dir_base_local for rootless container
+- name: Install podman | Create container_storage_dir_base and container_storage_dir_base_local for rootless container
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
@@ -107,7 +107,7 @@
     - "{{ container_storage_dir_base + '/' + podman_user + '/container_data' }}"
     - "{{ container_storage_dir_base_local + '/' + podman_user + '/container_data' }}"
 
-- name: Set selinux policy for podman user home
+- name: Install podman | Set selinux policy for podman user home
   community.general.sefcontext:
     target: '{{ item.target }}'
     setype: "{{ item.setype }}"
@@ -121,7 +121,7 @@
 # - ansible.builtin.debug:
 #     msg: "{{ filecontext.results[0] }}"
 
-- name: Run restore context to reload selinux
+- name: Install podman | Run restore context to reload selinux
   ansible.builtin.command:
     cmd: restorecon -F -R -v {{ item.target }}
   with_items:
@@ -132,7 +132,7 @@
   register: _result
   changed_when: _result.rc != 0
 
-- name: Create podman systemd unit directory for rootless operations
+- name: Install podman | Create podman systemd unit directory for rootless operations
   ansible.builtin.file:
     path: "{{ podman_user_home + '/.config/systemd/user' }}"
     state: directory
@@ -140,7 +140,7 @@
     group: "{{ podman_group }}"
     mode: '0700'
 
-- name: Create podman configurtation directory for rootless operations
+- name: Install podman | Create podman configuration directory for rootless operations
   ansible.builtin.file:
     path: "{{ podman_user_home + '/.config/containers' }}"
     state: directory
@@ -148,7 +148,7 @@
     group: "{{ podman_group }}"
     mode: '0700'
 
-- name: Prepare /etc/containers/containers.conf
+- name: Install podman | Prepare /etc/containers/containers.conf
   ansible.builtin.copy:
     dest: "{{ item }}"
     mode: "0644"
@@ -174,7 +174,7 @@
     # - "/etc/containers/containers.conf"
     - "{{ podman_user_home + '/.config/containers/containers.conf' }}"
 
-- name: Configure timezone
+- name: Install podman | Configure timezone
   community.general.ini_file:
     path: "{{ item }}"
     mode: "0644"
@@ -187,7 +187,7 @@
     - "{{ podman_user_home + '/.config/containers/containers.conf' }}"
 
 # TODO: workaround a current slirp4netns MTU related performance weakness (2023)
-- name: Configure podman rootless slirp4netns
+- name: Install podman | Configure podman rootless slirp4netns
   community.general.ini_file:
     path: "{{ podman_user_home + '/.config/containers/containers.conf' }}"
     owner: "{{ podman_user }}"
@@ -199,11 +199,54 @@
     state: "{{ item.state }}"
     no_extra_spaces: false
   loop:
-    - {section: 'containers', option: 'log_driver', value: '"k8s-file"', state: 'present'}
+    - {section: 'containers', option: 'log_driver', value: '"{{ podman_log_driver }}"', state: 'present'}
     - {section: 'engine', option: 'events_logger', value: '"file"', state: 'present'}
     - {section: 'engine', option: 'network_cmd_options', value: '["mtu=20000"]', state: 'present'}
 
-- name: Prepare /etc/containers/storage.conf
+# Add extra definition for ImageCopyTmpDir, if defined
+# (unfortunately, no loop over block possible)
+- name: Add changed ImageCopyTmpDir (if defined)
+  block:
+    - name: Ensure direcories exists
+      when: item.dest != ''
+      ansible.builtin.file:
+        path: "{{ item.dest }}"
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+        mode: "0o0755"
+        state: directory
+      loop:
+        - dest: "{{ podman_image_copy_tmp_dir_root if podman_image_copy_tmp_dir_root is defined else '' }}"
+          owner: "root"
+          group: "root"
+          conf: "/etc/containers/containers.conf"
+        - dest: "{{ podman_image_copy_tmp_dir_rootless if podman_image_copy_tmp_dir_rootless is defined else '' }}"
+          owner: "{{ podman_user }}"
+          group: "{{ podman_user }}"
+          conf: "{{ podman_user_home + '/.config/containers/containers.conf' }}"
+    - name: Install podman | Configure podman ImageCopyTmpDir
+      when: item.dest != ''
+      community.general.ini_file:
+        path: "{{ item.conf }}"
+        owner: "{{ item.owner }}"
+        group: "{{ item.owner }}"
+        mode: "0644"
+        section: "engine"
+        option: "env"
+        value: "['TMPDIR={{ item.dest }}']"
+        state: "present"
+        no_extra_spaces: false
+      loop:
+        - dest: "{{ podman_image_copy_tmp_dir_root if podman_image_copy_tmp_dir_root is defined else '' }}"
+          owner: "root"
+          group: "root"
+          conf: "/etc/containers/containers.conf"
+        - dest: "{{ podman_image_copy_tmp_dir_rootless if podman_image_copy_tmp_dir_rootless is defined else '' }}"
+          owner: "{{ podman_user }}"
+          group: "{{ podman_user }}"
+          conf: "{{ podman_user_home + '/.config/containers/containers.conf' }}"
+
+- name: Install podman | Prepare /etc/containers/storage.conf
   ansible.builtin.copy:
     dest: "{{ item }}"
     mode: "0644"
@@ -227,7 +270,7 @@
     # - "/etc/containers/storage.conf"
     - "{{ podman_user_home + '/.config/containers/storage.conf' }}"
 
-# - name: Configure podman storage global
+# - name: Install podman | Configure podman storage global
 #   community.general.ini_file:
 #     path: /etc/containers/storage.conf
 #     mode: "0644"
@@ -242,7 +285,7 @@
 #     # - {section: 'storage.options.overlay', option: 'mount_program', value: '"/usr/bin/fuse-overlayfs"',
 #     #   state: "{{ 'present' if podman_rootless | bool else 'absent' }}"}
 
-- name: Configure podman storage rootless
+- name: Install podman | Configure podman storage rootless
   community.general.ini_file:
     path: "{{ podman_user_home + '/.config/containers/storage.conf' }}"
     owner: "{{ podman_user }}"
@@ -270,7 +313,7 @@
 #     line: "{{ podman_user }}:{{ podman_subgid_range }}"
 #     create: true
 
-- name: Set kernel parameters
+- name: Install podman | Set kernel parameters
   ansible.posix.sysctl:
     name: "{{ item.name }}"
     value: "{{ item.value }}"
@@ -279,53 +322,22 @@
     reload: true
     sysctl_file: /etc/sysctl.d/podman.conf
   loop:
-    - {name: "net.core.rmem_max", value: "7500000"}
-    - {name: "net.core.wmem_max", value: "7500000"}
+    - {name: "net.core.rmem_max", value: "{{ net_core_rmem_max }}"}
+    - {name: "net.core.wmem_max", value: "{{ net_core_wmem_max }}"}
 
-- name: Podman network rootful
-  containers.podman.podman_network:
-    name: "{{ podman_networks.podman_network_root.podman_network_name }}"
-    driver: 'bridge'
-    internal: false
-    # ip_range: "{{ podman_networks.podman_network_root.podman_network_iprange }}"
-    subnet: "{{ podman_networks.podman_network_root.podman_network_subnet }}"
-    gateway: "{{ podman_networks.podman_network_root.podman_network_gateway }}"
-    disable_dns: "{{ podman_networks.podman_network_root.podman_network_disabledns | d(false) }}"
-    ipv6: false
-    # recreate: true
-    state: quadlet
-  register: _quadlet_file_status
-
-- name: Start the systemd network unit rootful
-  ansible.builtin.systemd_service:
-    name: "{{ podman_networks.podman_network_root.podman_network_name ~ '-network' }}"
-    daemon_reload: true
-    scope: "system"
-    state: "started"
-
-- name: Podman network rootless
-  become: true
-  become_user: "{{ podman_user }}"
-  containers.podman.podman_network:
-    name: "{{ podman_networks.podman_network_rootless.podman_network_name }}"
-    driver: 'bridge'
-    internal: false
-    # ip_range: "{{ podman_networks.podman_network_rootless.podman_network_iprange }}"
-    subnet: "{{ podman_networks.podman_network_rootless.podman_network_subnet }}"
-    gateway: "{{ podman_networks.podman_network_rootless.podman_network_gateway }}"
-    disable_dns: false
-    ipv6: false
-    # recreate: true
-    state: quadlet
-  register: _quadlet_file_status
-
-- name: Start the systemd network unit rootless
-  become: true
-  become_user: "{{ podman_user }}"
-  environment:
-    XDG_RUNTIME_DIR: "{{ '/run/user/' + _container_run_as_uid.stdout }}"
-  ansible.builtin.systemd_service:
-    name: "{{ podman_networks.podman_network_rootless.podman_network_name ~ '-network' }}"
-    daemon_reload: true
-    scope: "user"
-    state: "started"
+# include network create operation
+# Not while installing - only with/for specific container
+#- name: Install podman | Include tasks from sleif.podman/tasks/podman_network_create.yml - creates a network if necessary
+#  ansible.builtin.include_tasks:
+#    file: podman_network_create.yml
+#    apply:
+#      tags:
+#        - podman_network_create
+#  vars:
+#    podman_network_name: "{{ item.podman_network_name }}"
+#    podman_network_subnet: "{{ item.podman_network_subnet }}"
+#    podman_network_gateway: "{{ item.podman_network_gateway }}"
+#    podman_network_disabledns: "{{ item.podman_network_disabledns }}"
+#  with_items:
+#    - "{{ podman_networks }}" 
+##  tags: always

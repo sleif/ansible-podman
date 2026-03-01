@@ -29,6 +29,11 @@ podman_packages:
 podman_system_prune: false
 podman_system_prune_min_free_gb: 5
 
+podman_log_driver: 'k8s-file'
+
+net_core_rmem_max: "7500000"
+net_core_wmem_max: "7500000"
+
 # podman_packages with copr
 # podman_packages:
 #   - aardvark-dns >= 1.11
@@ -45,13 +50,11 @@ podman_system_prune_min_free_gb: 5
 #   - passt
 
 podman_networks:
-  podman_network_root:
-    podman_network_name: 'podman_custom_network'
+  - podman_network_name: 'podman_custom_network'
     podman_network_subnet: '10.99.0.0/16'
     podman_network_gateway: '10.99.0.1'
     podman_network_iprange: '10.99.0.128/25'
-  podman_network_rootless:
-    podman_network_name: 'podman_custom_network'
+  - podman_network_name: 'podman_custom_network1'
     podman_network_subnet: '10.98.0.0/16'
     podman_network_gateway: '10.98.0.1'
     podman_network_iprange: '10.98.0.128/25'

@@ -1,0 +1,53 @@
+---
+# Socket create operation
+
+#- name: reset _socket_create_changed for {{ _socket.name }}
+#  ansible.builtin.set_fact:
+#    _socket_create_changed: false
+# Necessary??
+
+# podman_sockets has to be defined as follows:
+#
+#   podman_sockets:
+#     container: '<container_name>'
+#     sockets
+#     - 'ListenStream=[<ip6>]:<port>'
+#     - 'ListenStream=[<ip6.2>]:<port2>'
+#     - ...
+# Datagram etc. are supported as well. Template will expand defined
+# Listen-* to [Unit] parameters in unit. Only one socket unit possible
+# per container. Matching container-name required to only create
+# create sockets for this container (relevant for pods with many 
+# containers)
+
+- name: Include podman_init_vars.yml from sleif.podman
+  ansible.builtin.include_tasks: "{{ lookup('first_found', params) }}"
+  vars:
+    params:
+      files: sleif.podman/tasks/includes/podman_init_vars.yml
+      paths: "{{ lookup('config', 'DEFAULT_ROLES_PATH') }}"
+
+- name: Socket create block
+  become: "{{ podman_rootless | d(true) | bool }}"
+  become_user: "{{ podman_user if podman_rootless | d(true) | bool else omit }}"
+  when: podman_socket_name is defined
+  tags:
+    - podman_socket_create
+  environment:
+    XDG_RUNTIME_DIR: "{{ _xdg_runtime_dir }}"
+  block:
+    - name: Podman socket create | template systemd unit
+      ansible.builtin.template:
+        dest: "{{ _systemd_service_files_dir ~ podman_socket_name ~ '.socket' }}"
+        src: "sockets.j2"
+        mode: "0o0644"
+      register: _result
+
+    - name: Start the systemd socket unit
+      ansible.builtin.systemd_service:
+        name: "{{ podman_socket_name ~ '.socket' }}"
+        daemon_reload: true
+        scope: "{{ 'user' if podman_rootless | d(true) | bool else 'system' }}"
+        state: "restarted"
+        enabled: "true"
+      when: _result.changed

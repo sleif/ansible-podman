@@ -11,6 +11,61 @@
       files: sleif.podman/tasks/includes/podman_init_vars.yml
       paths: "{{ lookup('config', 'DEFAULT_ROLES_PATH') }}"
 
+- name: set fact for socket
+  ansible.builtin.set_fact:
+    pod_sock_name: "{{ podman_sockets.container }}"
+  when: podman_sockets is defined
+
+# include socket create operation
+- name: Include role sleif.podman podman_operation podman_socket_create - creates a socket for container
+  ansible.builtin.include_role:
+    name: sleif.podman
+    apply:
+      tags:
+        - podman_socket_create
+  vars:
+    podman_operation: podman_socket_create
+    podman_socket_name: "{{ _container.name }}"
+    podman_socket: "{{ podman_sockets.sockets }}"
+  when: podman_sockets is defined and pod_sock_name == _container.name
+
+# include network create operation
+- name: Include role sleif.podman podman_operation podman_network_create - creates a network if necessary
+  ansible.builtin.include_role:
+    name: sleif.podman
+    apply:
+      tags:
+        - podman_network_create
+  vars:
+    podman_network_name: "{{ item.podman_network_name }}"
+    podman_network_subnet: "{{ item.podman_network_subnet }}"
+    podman_network_gateway: "{{ item.podman_network_gateway }}"
+    podman_network_disabledns: "{{ item.podman_network_disabledns }}"
+    podman_operation: podman_network_create
+  with_items:
+    - "{{ podman_networks }}"
+  register: _networks
+#  tags: always
+  when: podman_networks is defined
+
+- name: Clear podman_network_names to cleanly enumerate networks
+  ansible.builtin.set_fact:
+    podman_network_names: []
+  when: podman_networks is defined
+
+- name: Enumerate of podman_networks.[network].podman_network_name
+  ansible.builtin.set_fact:
+    podman_network_names: "{{ podman_network_names | default([]) + [ item.podman_network_name  ] }}"
+  with_items: "{{ podman_networks }}"
+  when: podman_networks is defined
+
+#- name: Debug podman_network_names
+#  ansible.builtin.debug:
+#    msg: "{{ podman_network_names }}"
+#- name: Debug podman_networks
+#  ansible.builtin.debug:
+#    msg: "{{ podman_networks }}"
+
 - name: Container create block
   become: "{{ podman_rootless | d(true) | bool }}"
   become_user: "{{ podman_user if podman_rootless | d(true) | bool else omit }}"
@@ -41,6 +96,7 @@
             - podman_pod_create
       vars:
         podman_operation: podman_pod_create
+        podman_networks: "{{ _networks if _networks is defined else omit }}"
       tags: always
 
     - name: Include role sleif.podman podman_operation podman_system_prune - creates a  pod if necessary
@@ -104,6 +160,7 @@
       vars:
         podman_operation: podman_image_build
         _build_required: "{{ _container.build_required | d(false) }}"
+        _build_dir: "{{ _container.build_dir if _container.build_dir is defined else omit }}"
         _container_name: "{{ _container.name }}"
         _containerfile_content: "{{ _container.containerfile_content }}"
         _image_name: "{{ _container.image.name }}"
@@ -141,7 +198,8 @@
         memory: "{{ _container.memory | default(omit) }}"
         name: "{{ _container.name }}"
         # network_aliases: "{{ _container.hostname }}"
-        network: "{{ _container.network | d(podman_network_name if pod_name | d('') is falsy else []) }}"
+# ToDo: enable multiple networks being defined to attach to a container; has to be list of network_names
+        network: "{{ _container.network | d(podman_network_names if pod_name | d('') is falsy else []) }}"
         pod: "{{ _pod_file_name if _pod_file_name is truthy else omit }}"
         publish: "{{ _container.publish | default([]) }}"
         # recreate: "{{ podman_container_recreate | d(false) }}"
@@ -151,10 +209,13 @@
           - |
             [Service]
             Restart=always
-            ExecStartPost={{ _container.service.execstartpost | d('') }}
-            TimeoutStartSec=900
+            ExecStartPost={{ _container.service.exec_start_post | d('') }}
+            TimeoutStartSec={{ _container.service.start_timeout | d('900') }}
             [Install]
             WantedBy=default.target
+            {{ '[Unit]
+            PartOf=' ~ _container.name ~ '.socket' if podman_sockets is defined else '' }}
+            {{ quadlet_container_options | d('') }}
         rm: false
         secrets: "{{ _container.secrets | d([]) | map(attribute='name') | list }}"
         state: quadlet
