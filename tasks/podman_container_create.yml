@@ -125,6 +125,18 @@
         _volumes: "{{ _volumes | d([]) + [item.host ~ ':' ~ item.target] }}"
       loop: "{{ _container.volumes | default([]) }}"
 
+    - name: Set_fact _volumes
+      ansible.builtin.set_fact:
+        _quadlet_default:
+          - "AutoUpdate=local"
+          - |
+            [Service]
+            Restart=always
+            ExecStartPost={{ _container.service.execstartpost | d('') }}
+            TimeoutStartSec=900
+            [Install]
+            WantedBy=default.target
+
     - name: Create container {{ _container.image.name }} as {{ _container.hostname | d(_container.name) }}
       become: "{{ podman_rootless | d(true) | bool }}"
       become_user: "{{ podman_user if podman_rootless | d(true) | bool else omit }}"
@@ -146,15 +158,7 @@
         publish: "{{ _container.publish | default([]) }}"
         # recreate: "{{ podman_container_recreate | d(false) }}"
         # restart_policy: "no"
-        quadlet_options:
-          - "AutoUpdate=local"
-          - |
-            [Service]
-            Restart=always
-            ExecStartPost={{ _container.service.execstartpost | d('') }}
-            TimeoutStartSec=900
-            [Install]
-            WantedBy=default.target
+        quadlet_options: "{{ _container.quadlet_options | default(_quadlet_default) }}"
         rm: false
         secrets: "{{ _container.secrets | d([]) | map(attribute='name') | list }}"
         state: quadlet
