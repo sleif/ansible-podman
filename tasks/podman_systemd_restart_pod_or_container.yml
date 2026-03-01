@@ -53,3 +53,4 @@
         # enabled: true
         scope: "{{ _systemd_scope }}"
         state: "{{ 'restarted' if quadlet.changed | bool or _target_state != 'running' or _container_create_changed | d(false) | bool else 'started' }}"
+      register: _podman_container_systemd_state
