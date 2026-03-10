@@ -11,23 +11,20 @@
       files: sleif.podman/tasks/includes/podman_init_vars.yml
       paths: "{{ lookup('config', 'DEFAULT_ROLES_PATH') }}"
 
-- name: set fact for socket
-  ansible.builtin.set_fact:
-    pod_sock_name: "{{ podman_sockets.container }}"
-  when: podman_sockets is defined
-
 # include socket create operation
-- name: Include role sleif.podman podman_operation podman_socket_create - creates a socket for container
+- name: Socket CRUD block
+  block:
+    - name: Include role sleif.podman podman_operation podman_socket_crud - creates sockets for container {{ _container.name }}
   ansible.builtin.include_role:
     name: sleif.podman
     apply:
       tags:
-        - podman_socket_create
+            - podman_socket_crud
   vars:
-    podman_operation: podman_socket_create
-    podman_socket_name: "{{ _container.name }}"
-    podman_socket: "{{ podman_sockets.sockets }}"
-  when: podman_sockets is defined and pod_sock_name == _container.name
+        podman_operation: podman_socket_crud
+        sockets:
+          container: "{{ _container.name }}"
+          sockets: "{{ _container.sockets | d([]) }}"
 
 # include network create operation
 - name: Include role sleif.podman podman_operation podman_network_create - creates a network if necessary

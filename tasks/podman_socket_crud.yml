@@ -1,0 +1,105 @@
+---
+# Socket create or remove operation
+
+# sockets has to be defined as follows:
+#
+# sockets:
+#   container: '<container_name>'
+#   sockets
+#     - 'ListenStream=[<ip6>]:<port>'
+#     - 'ListenStream=[<ip6.2>]:<port2>'
+#     - ...
+#
+# Datagram etc. are supported as well. Template will expand defined
+# Listen-* to [Unit] parameters in unit. Only one socket unit possible
+# per container. Matching container-name required to only create
+# create sockets for this container (relevant for pods with many
+# containers)
+
+- name: Podman_socket_crud | Define systemd unit file and reset _socket_crud_changed for {{ sockets.container }}
+  ansible.builtin.set_fact:
+    _socket_crud_changed: false
+    _socket_systemd_unit_file: "{{ sockets.container ~ '-network.socket' }}"
+
+- name: Include podman_init_vars.yml from sleif.podman
+  ansible.builtin.include_tasks: "{{ lookup('first_found', params) }}"
+  vars:
+    params:
+      files: sleif.podman/tasks/includes/podman_init_vars.yml
+      paths: "{{ lookup('config', 'DEFAULT_ROLES_PATH') }}"
+
+- name: Podman_socket_crud | Socket create block
+  become: "{{ podman_rootless | d(true) | bool }}"
+  become_user: "{{ podman_user if podman_rootless | d(true) | bool else omit }}"
+  tags:
+    - podman_socket_crud
+  environment:
+    XDG_RUNTIME_DIR: "{{ _xdg_runtime_dir }}"
+  block:
+    - name: Podman_socket_crud | create systemd unit file from template for {{ sockets.container }}
+      ansible.builtin.template:
+        dest: "{{ _systemd_service_files_dir ~ _socket_systemd_unit_file }}"
+        src: "sockets.j2"
+        mode: "0644"
+      register: _socket_unit_create
+      when:
+        - sockets.sockets | d([]) is truthy
+
+    - name: Podman_socket_crud | check existence of systemd unit file for {{ sockets.container }}
+      ansible.builtin.file:
+        dest: "{{ _systemd_service_files_dir ~ _socket_systemd_unit_file }}"
+        state: absent
+      check_mode: true
+      register: _socket_unit_remove
+      when:
+        - sockets.sockets | d([]) is falsy
+
+    # - name: Install a simple quadlet file
+    #   containers.podman.podman_quadlet:
+    #     state: present
+    #     src: "/tmp/{{ podman_socket_name ~ '.socket' }}"
+    #   register: _socket_crud_changed
+
+    - name: Podman_socket_crud | Enumerate _container_create_changed for {{ sockets.container }}
+      ansible.builtin.set_fact:
+        _socket_crud_changed: "{{ true if _socket_crud_changed | d(false) | bool or
+          _socket_unit_create.changed | bool or
+          _socket_unit_remove.changed | bool else false }}"
+
+    - name: Podman_socket_crud | Gather service facts for {{ _socket_systemd_unit_file }}
+      ansible.builtin.systemd:
+        name: "{{ _socket_systemd_unit_file }}"
+        daemon_reload: true
+        scope: "{{ _systemd_scope }}"
+      register: _podman_container_systemd_state
+
+    - name: Podman_socket_crud | Generate _target_state from _network_info
+      ansible.builtin.set_fact:
+        _target_state: "{{ _podman_container_systemd_state.status.ActiveState | lower }}"
+
+    - name: Podman_socket_crud | Start/restart systemd service for {{ _socket_systemd_unit_file }}
+      ansible.builtin.systemd_service:
+        name: "{{ _socket_systemd_unit_file }}"
+        daemon_reload: true
+        enabled: "{{ sockets.sockets | d([]) is truthy }}"
+        scope: "{{ _systemd_scope }}"
+        state: "{{ 'restarted' if (_target_state != 'active' or _socket_crud_changed | d(false) | bool) else
+          'stopped' if (sockets.sockets | d([]) is falsy) else 'started' }}"
+      register: _podman_container_systemd_state
+      when:
+        - _socket_crud_changed | bool or sockets.sockets | d([]) is truthy
+
+    - name: Podman_socket_crud | remove systemd unit file for {{ sockets.container }}
+      ansible.builtin.file:
+        dest: "{{ _systemd_service_files_dir ~ _socket_systemd_unit_file }}"
+        state: absent
+      register: _socket_unit_remove
+      when:
+        - sockets.sockets | d([]) is falsy
+
+    - name: Podman_socket_crud | reload systemd  # noqa: no-handler
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+        scope: "{{ _systemd_scope }}"
+      when:
+        - _socket_unit_remove.changed | bool

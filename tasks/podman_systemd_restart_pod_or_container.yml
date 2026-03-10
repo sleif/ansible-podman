@@ -52,5 +52,10 @@
         daemon_reload: true
         # enabled: true
         scope: "{{ _systemd_scope }}"
-        state: "{{ 'restarted' if quadlet.changed | bool or _target_state != 'running' or _container_create_changed | d(false) | bool else 'started' }}"
+        state: "{{ 'restarted' if (quadlet.changed | bool or
+          _target_state != 'running' or
+          _container_create_changed | d(false) | bool or
+          _socket_crud_changed | d(false) | bool or
+          _network_create_changed | d(false) | bool)
+          else 'started' }}"
       register: _podman_container_systemd_state

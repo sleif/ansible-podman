@@ -12,7 +12,7 @@ podman_operations:
   - podman_init_vars
   - podman_install
   - podman_network_create
-  - podman_socket_create
+  - podman_socket_crud
   - podman_pod_create
   - podman_systemd_restart_pod_or_container
 ```

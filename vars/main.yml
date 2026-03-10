@@ -8,6 +8,6 @@ podman_operations:
   - podman_install
   - podman_network_create
   - podman_pod_create
-  - podman_socket_create
+  - podman_socket_crud
   - podman_system_prune
   - podman_systemd_restart_pod_or_container

@@ -1,12 +1,12 @@
 # Socket definition
 [Unit]
-Description={{ podman_socket_name }}
+Description={{ 'Sockets for Container ' ~ _sockets.container }}
 
 [Socket]
-{% for line in podman_socket %}
+{% for line in sockets.sockets %}
 {{ line }}
 {% endfor %}
-Service={{ container_name }}.service
+Service={{ sockets.container }}.service
 
 [Install]
 WantedBy=default.target
