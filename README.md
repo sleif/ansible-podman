@@ -39,6 +39,7 @@ None
 ## Role Variables
 
 - podman_operation
+- podman_system_prune_force
 
 ## Dependencies
 

@@ -38,9 +38,13 @@
         system_all: true
         system_volumes: true
       register: _system_prune_results
-      when: _podman_free_bytes | int < _system_prune_min_free_bytes | int
+      when:
+        - (_podman_free_bytes | int < _system_prune_min_free_bytes | int) or
+          podman_system_prune_force | d(false) | bool
 
     - name: Podman_system_prune | Debug system prune results
       ansible.builtin.debug:
         var: _system_prune_results
-      when: _podman_free_bytes | int < _system_prune_min_free_bytes | int
+      when:
+        - (_podman_free_bytes | int < _system_prune_min_free_bytes | int) or
+          podman_system_prune_force | d(false) | bool

@@ -28,6 +28,7 @@ podman_packages:
 
 podman_system_prune: false
 podman_system_prune_min_free_gb: 5
+podman_system_prune_force: false
 
 podman_log_driver: 'k8s-file'
 
