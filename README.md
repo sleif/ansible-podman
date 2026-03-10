@@ -21,17 +21,19 @@ podman_operations:
 - podman_init_vars: provides Podman environments for other roles; it will provide:
   - _container_storage_dir_base_local
   - _container_storage_dir_base
-  - _group, _owner
+  - _group
+  - _owner
   - _systemd_scope
   - _systemd_service_files_dir
   - _xdg_runtime_dir
 - podman_systemd_restart_pod_or_container: provides systemd unit file management; to ensure that Podman containers will work smoothly with systemd, it is required to just create `state: created` the containers with `containers.podman.podman_container` and call `podman_systemd_restart_pod_or_container` after the pod creation
 - podman_pod_create: creates a Podman pod to be used from other roles
 - podman_network_create: creates Podman networks as defined as dict in podman_networks automagically while creating containers or pod (if required). Of course, in proper context (rootful/rootless). Aside from podman itself defined networks no networks are created when installing podman.
-- podman_socket_create: creates a socket (systemd-unit) for a particular container (e.g. caddyserver to do networking rootless on host ports without networking involved)
+- podman_socket_crud: creates a socket (systemd-unit) for a particular container (e.g. caddyserver to do networking rootless on host ports without networking involved)
 
 - ```podman_log_driver``` is available to define the podman logdriver for a rootless installation. It has ```k8s-file``` as default.
 - ```podman_image_copy_tmp_dir_root``` and ```podman_image_copy_tmp_dir_rootless``` can define another directory to circumvent size constraints on /var/tmp (rootless) for image building and image updates.
+
 ## Requirements
 
 None
