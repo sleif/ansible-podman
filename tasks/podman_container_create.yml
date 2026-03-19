@@ -11,66 +11,35 @@
       files: sleif.podman/tasks/includes/podman_init_vars.yml
       paths: "{{ lookup('config', 'DEFAULT_ROLES_PATH') }}"
 
+- name: Include podman_pre_network_create.yml from sleif.podman for the container
+  ansible.builtin.include_tasks: "{{ lookup('first_found', params) }}"
+  vars:
+    params:
+      files: sleif.podman/tasks/includes/podman_pre_network_create.yml
+      paths: "{{ lookup('config', 'DEFAULT_ROLES_PATH') }}"
+  when:
+    - pod_name | d('') is falsy
+
 # include socket create operation
 - name: Socket CRUD block
   block:
     - name: Include role sleif.podman podman_operation podman_socket_crud - creates sockets for container {{ _container.name }}
-  ansible.builtin.include_role:
-    name: sleif.podman
-    apply:
-      tags:
+      ansible.builtin.include_role:
+        name: sleif.podman
+        apply:
+          tags:
             - podman_socket_crud
-  vars:
+      vars:
         podman_operation: podman_socket_crud
         sockets:
           container: "{{ _container.name }}"
           sockets: "{{ _container.sockets | d([]) }}"
-
-# include network create operation
-- name: Include role sleif.podman podman_operation podman_network_create - creates a network if necessary
-  ansible.builtin.include_role:
-    name: sleif.podman
-    apply:
-      tags:
-        - podman_network_create
-  vars:
-    podman_network_name: "{{ item.podman_network_name }}"
-    podman_network_subnet: "{{ item.podman_network_subnet }}"
-    podman_network_gateway: "{{ item.podman_network_gateway }}"
-    podman_network_disabledns: "{{ item.podman_network_disabledns }}"
-    podman_operation: podman_network_create
-  with_items:
-    - "{{ podman_networks }}"
-  register: _networks
-#  tags: always
-  when: podman_networks is defined
-
-- name: Clear podman_network_names to cleanly enumerate networks
-  ansible.builtin.set_fact:
-    podman_network_names: []
-  when: podman_networks is defined
-
-- name: Enumerate of podman_networks.[network].podman_network_name
-  ansible.builtin.set_fact:
-    podman_network_names: "{{ podman_network_names | default([]) + [item.podman_network_name] }}"
-  with_items: "{{ podman_networks }}"
-  when: podman_networks is defined
-
-# - name: Debug podman_network_names
-#   ansible.builtin.debug:
-#     msg: "{{ podman_network_names }}"
-# - name: Debug podman_networks
-#   ansible.builtin.debug:
-#     msg: "{{ podman_networks }}"
 
 - name: Container create block
   become: "{{ podman_rootless | d(true) | bool }}"
   become_user: "{{ podman_user if podman_rootless | d(true) | bool else omit }}"
   tags:
     - podman_container_create
-  # when:
-  #   - pod_name is defined
-  #   - pod_name | length > 0
   block:
     - name: Create persistant container directories for {{ _container.name }}  # noqa: ignore-errors
       become: "{{ podman_rootless | bool }}"
@@ -93,7 +62,6 @@
             - podman_pod_create
       vars:
         podman_operation: podman_pod_create
-        podman_networks: "{{ _networks if _networks is defined else omit }}"
       tags: always
 
     - name: Include role sleif.podman podman_operation podman_system_prune - creates a  pod if necessary
@@ -157,7 +125,7 @@
       vars:
         podman_operation: podman_image_build
         _build_required: "{{ _container.build_required | d(false) }}"
-        _build_dir: "{{ _container.build_dir if _container.build_dir is defined else omit }}"
+        _build_dir: "{{ _container.build_dir | d('') }}"
         _container_name: "{{ _container.name }}"
         _containerfile_content: "{{ _container.containerfile_content }}"
         _image_name: "{{ _container.image.name }}"
@@ -179,9 +147,9 @@
         _volumes: "{{ _volumes | d([]) + [item.host ~ ':' ~ item.target] }}"
       loop: "{{ _container.volumes | default([]) }}"
 
-    - name: Set_fact _volumes
+    - name: Set_fact _quadlet_options_defaults
       ansible.builtin.set_fact:
-        _quadlet_default:
+        _quadlet_options_defaults:
           - "AutoUpdate=local"
           - |
             [Service]
@@ -209,13 +177,13 @@
         memory: "{{ _container.memory | default(omit) }}"
         name: "{{ _container.name }}"
         # network_aliases: "{{ _container.hostname }}"
-# ToDo: enable multiple networks being defined to attach to a container; has to be list of network_names
-        network: "{{ _container.network | d(podman_network_names if pod_name | d('') is falsy else []) }}"
+        # ToDo: enable multiple networks being defined to attach to a container; has to be list of network_names
+        network: "{{ [] if pod_name | d('') is truthy else _container.network | d(podman_network_name | d(podman_network_names | d([]))) }}"
         pod: "{{ _pod_file_name if _pod_file_name is truthy else omit }}"
         publish: "{{ _container.publish | default([]) }}"
         # recreate: "{{ podman_container_recreate | d(false) }}"
         # restart_policy: "no"
-        quadlet_options: "{{ _container.quadlet_options | default(_quadlet_default) }}"
+        quadlet_options: "{{ _container.quadlet_options | default(_quadlet_options_defaults) }}"
         rm: false
         secrets: "{{ _container.secrets | d([]) | map(attribute='name') | list }}"
         state: quadlet
@@ -246,3 +214,17 @@
         podman_operation: podman_systemd_restart_pod_or_container
         target: "{{ pod_name if pod_name | d('') is truthy else container_name }}"
         quadlet: "{{ _container_create_quadlet }}"
+
+    - name: Include role sleif.podman podman_operation podman_image_pull to cleanup old images of {{ _container.image.name }}
+      ansible.builtin.include_role:
+        name: sleif.podman
+        apply:
+          tags:
+            - podman_image_pull
+      vars:
+        podman_operation: podman_image_pull
+        image_name: "{{ _container.image.name }}"
+        image_tags_to_remove: "{{ _container.image.tags_to_remove }}"
+      loop: "{{ _container.image.tags_to_remove }}"
+      when:
+        - _container.image.tags_to_remove | d([]) is truthy

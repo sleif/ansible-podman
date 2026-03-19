@@ -1,17 +1,17 @@
 ---
 
-- name: Include podman_init_vars.yml from sleif.podman
+- name: Podman_Image_CRUD | Include podman_init_vars.yml from sleif.podman
   ansible.builtin.include_tasks: "{{ lookup('first_found', params) }}"
   vars:
     params:
       files: sleif.podman/tasks/includes/podman_init_vars.yml
       paths: "{{ lookup('config', 'DEFAULT_ROLES_PATH') }}"
 
-- name: Create quadlet file for and pull image
+- name: Podman_Image_CRUD | Create quadlet file for and pull image
   become: "{{ podman_rootless | d(true) | bool }}"
   become_user: "{{ podman_user if podman_rootless | d(true) | bool else omit }}"
   block:
-    # - name: Create quadlet file for image build {{ image_name ~ ':' ~ image_tag | d('latest') }}
+    # - name: Podman_Image_CRUD | Create quadlet file for image build {{ image_name ~ ':' ~ image_tag | d('latest') }}
     #   containers.podman.podman_image:
     #     name: "{{ image_name ~ ':' ~ image_tag ~ '-' ~ 'sleif' }}"
     #     tag: "{{ image_tag ~ '-' ~ 'sleif' }}"
@@ -28,45 +28,74 @@
     # - debug: var=_build_status
     # - pause:
 
-    - name: enumerate _image_pull_changed
-      ansible.builtin.set_fact:
-        _quadlet_basename: "{{ image_name | replace('/', '__') ~ '__' ~ image_tag }}"
 
-    - name: Create quadlet file for image {{ image_name ~ ':' ~ image_tag | d('latest') }}
-      containers.podman.podman_image:
-        name: "{{ image_name ~ ':' ~ image_tag }}"
-        tag: "{{ image_tag }}"
-        state: quadlet
-        quadlet_filename: "{{ _quadlet_basename }}"
-        quadlet_options:
-          - |
-            [Install]
-            WantedBy=default.target
-      register: _quadlet_file_status
+    - name: Podman_Image_CRUD | Image create block
+      when:
+        - image_tag | d('') is truthy
+      block:
+        - name: Podman_Image_CRUD | enumerate _image_pull_changed
+          ansible.builtin.set_fact:
+            _quadlet_basename: "{{ image_name | replace('/', '__') ~ '__' ~ image_tag }}"
 
-    - name: Update container image {{ image_name ~ ':' ~ image_tag }}
-      containers.podman.podman_image:
-        name: "{{ image_name ~ ':' ~ image_tag }}"
-        tag: "{{ image_tag }}"
-        pull: true
-        force: true
-      register: _image_pull_status
+        - name: Podman_Image_CRUD | Create quadlet file for image {{ image_name ~ ':' ~ image_tag | d('') }}
+          containers.podman.podman_image:
+            name: "{{ image_name ~ ':' ~ image_tag }}"
+            tag: "{{ image_tag }}"
+            state: quadlet
+            quadlet_filename: "{{ _quadlet_basename }}"
+            quadlet_options:
+              - |
+                [Install]
+                WantedBy=default.target
+          register: _quadlet_file_status
 
-    - name: Start the systemd image unit
-      environment:
-        XDG_RUNTIME_DIR: "{{ _xdg_runtime_dir }}"
-      ansible.builtin.systemd_service:
-        name: "{{ _quadlet_basename ~ '-image' }}"
-        daemon_reload: true
-        # enabled: true
-        scope: "{{ _systemd_scope }}"
-        state: "started"
+        - name: Podman_Image_CRUD | Update container image {{ image_name ~ ':' ~ image_tag | d('') }}
+          containers.podman.podman_image:
+            name: "{{ image_name ~ ':' ~ image_tag }}"
+            tag: "{{ image_tag }}"
+            pull: true
+            force: true
+          register: _image_pull_status
 
-    - name: enumerate _image_pull_changed
-      ansible.builtin.set_fact:
-        _image_pull_changed: "{{ true if _image_pull_changed | d(false) | bool or _image_pull_status.changed | bool
-          or _quadlet_file_status.changed | bool else false }}"
+        - name: Podman_Image_CRUD | Start the systemd image unit for {{ image_name ~ ':' ~ image_tag | d('') }}
+          environment:
+            XDG_RUNTIME_DIR: "{{ _xdg_runtime_dir }}"
+          ansible.builtin.systemd_service:
+            name: "{{ _quadlet_basename ~ '-image' }}"
+            daemon_reload: true
+            # enabled: true
+            scope: "{{ _systemd_scope }}"
+            state: "started"
 
-    - name: debug _image_pull_changed for {{ image_name ~ ':' ~ image_tag }}
-      ansible.builtin.debug:
-        msg: "image has{{ _image_pull_changed | bool | ternary('', ' not') }} changed: {{ image_name ~ ':' ~ image_tag }}"
+        - name: Podman_Image_CRUD | enumerate _image_pull_changed
+          ansible.builtin.set_fact:
+            _image_pull_changed: "{{ true if _image_pull_changed | d(false) | bool or _image_pull_status.changed | bool
+              or _quadlet_file_status.changed | bool else false }}"
+
+        - name: Podman_Image_CRUD | debug _image_pull_changed for {{ image_name ~ ':' ~ image_tag | d('') }}
+          ansible.builtin.debug:
+            msg: "image has{{ _image_pull_changed | bool | ternary('', ' not') }} changed: {{ image_name ~ ':' ~ image_tag }}"
+
+    - name: Podman_Image_CRUD | Image delete block
+      when:
+        - image_tags_to_remove | d([]) is truthy
+        - _systemd_service_files_dir is truthy
+      block:
+        - name: Podman_Image_CRUD | Remove old container images of {{ image_name }}
+          containers.podman.podman_image:
+            name: "{{ image_name ~ ':' ~ _image_tag }}"
+            tag: "{{ _image_tag }}"
+            state: absent
+          loop: "{{ image_tags_to_remove | d([]) }}"
+          loop_control:
+            loop_var: _image_tag
+          register: _image_delete_status
+
+        - name: Podman_Image_CRUD | Remove quadlet files of old container images of {{ image_name }}
+          ansible.builtin.file:
+            path: "{{ _quadlet_files_dir ~ image_name | replace('/', '__') ~ '__' ~ _image_tag ~ '.image' }}"
+            state: absent
+          loop: "{{ image_tags_to_remove | d([]) }}"
+          loop_control:
+            loop_var: _image_tag
+          register: _image_delete_quadlet_status

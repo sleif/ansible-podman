@@ -1,0 +1,26 @@
+---
+
+- name: Clear podman_network_names to cleanly enumerate networks
+  ansible.builtin.set_fact:
+    podman_network_names: "{{ [podman_network_name | d(omit)] }}"
+
+# include network create operation
+- name: Network creation block
+  when:
+    - podman_networks is truthy
+  block:
+    - name: Include role sleif.podman podman_operation podman_network_create - creates a network if necessary
+      ansible.builtin.include_role:
+        name: sleif.podman
+        apply:
+          tags:
+            - podman_network_create
+      vars:
+        network: "{{ podman_networks[item.key] }}"
+        podman_operation: podman_network_create
+      loop: "{{ podman_networks | dict2items }}"
+
+    - name: Enumerate podman_network_names
+      ansible.builtin.set_fact:
+        podman_network_names: "{{ podman_network_names | default([]) + [item.value.name] }}"
+      loop: "{{ podman_networks | dict2items }}"

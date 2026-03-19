@@ -42,6 +42,8 @@ None
 
 - podman_operation
 - podman_system_prune_force
+- podman_networks # dict of networks, see defaults
+- podman_network_names  # a list of networks (this could also be slirp4netns or pasta), to which all networks from “podman_networks” are appended
 
 ## Dependencies
 
@@ -94,14 +96,16 @@ None
       podman_operation: podman_pod_create
       podman_rootless: true
       podman_networks:
-        - podman_network_name: 'podman_net1'
-          podman_network_subnet: '10.0.0.0/24'
-          podman_network_gateway: '10.0.0.1'
-          podman_network_iprange: '10.0.0.128/25'
-        - podman_network_name: 'podman_net2'
-          podman_network_subnet: '10.0.1.0/24'
-          podman_network_gateway: '10.0.1.1'
-          podman_network_iprange: '10.0.1.128/25'
+        podman_network_net1:
+          name: 'podman_net1'
+          subnet: '10.0.0.0/24'
+          gateway: '10.0.0.1'
+          iprange: '10.0.0.128/25'
+        podman_network_net2:
+          name: 'podman_net2'
+          subnet: '10.0.1.0/24'
+          gateway: '10.0.1.1'
+          iprange: '10.0.1.128/25'
     tags: always
   ```
 
@@ -135,14 +139,11 @@ None
       container_name: 'foo'
       hostname: 'foo-host'
       podman_networks:
-        - podman_network_name: 'podman_net1'
-          podman_network_subnet: '10.9.0.0/24'
-          podman_network_gateway: '10.9.0.1'
-          podman_network_iprange: '10.9.0.128/25'
-        - podman_network_name: 'podman_net2'
-          podman_network_subnet: '10.10.0.0/24'
-          podman_network_gateway: '10.10.0.1'
-          podman_network_iprange: '10.10.0.128/25'
+        podman_network_root:
+          name: 'podman_net1'
+          subnet: '10.0.0.0/24'
+          gateway: '10.0.0.1'
+          iprange: '10.0.0.128/25'
       podman_sockets:
         container: "{{ container_name }}"
         sockets:

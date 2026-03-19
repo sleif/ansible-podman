@@ -7,6 +7,13 @@
       files: sleif.podman/tasks/includes/podman_init_vars.yml
       paths: "{{ lookup('config', 'DEFAULT_ROLES_PATH') }}"
 
+- name: Include podman_pre_network_create.yml from sleif.podman for the pod
+  ansible.builtin.include_tasks: "{{ lookup('first_found', params) }}"
+  vars:
+    params:
+      files: sleif.podman/tasks/includes/podman_pre_network_create.yml
+      paths: "{{ lookup('config', 'DEFAULT_ROLES_PATH') }}"
+
 - name: Pod create block
   become: "{{ podman_rootless | d(true) | bool }}"
   become_user: "{{ podman_user if podman_rootless | d(true) | bool else omit }}"
@@ -53,7 +60,8 @@
       containers.podman.podman_pod:
         hostname: "{{ pod_name }}"
         name: "{{ pod_name }}"
-        network: "{{ podman_network_names if podman_network_names is defined else omit }}"
+        network: "{{ podman_network_names | d([]) if podman_network_names | d([]) is truthy else omit }}"
+        # network: "{{ podman_network_name | d(podman_network_names | d([])) if podman_network_name | d(podman_network_names | d([])) is truthy else omit }}"
         publish: "{{ pod_published_ports | default(omit) }}"
         quadlet_options:
           - |

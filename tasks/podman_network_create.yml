@@ -3,55 +3,78 @@
 
 # Required network definition
 #
-# podman_networks
-#   - podman_network_name: 'podman_net1'
-#     podman_network_subnet: '10.77.0.0/15'
-#     podman_network_gateway: '10.77.0.1'
-#     podman_network_iprange: '10.77.0.0/16'
-#     podman_network_ipv6: 'false'
-#   - podman_network_name: 'podman_net2'
-#     podman_network_subnet: '10.98.0.0/16'
-#     podman_network_gateway: '10.98.0.1'
-#     podman_network_iprange: '10.98.0.0/24'
-#     podman_network_ipv6: 'true'
+# network:
+#   name: 'podman_net1'
+#   subnet: '10.77.0.0/15'
+#   gateway: '10.77.0.1'
+# - debug: var=network
+- name: Podman_network_create | Reset _network_create_changed for {{ network.name }}, define systemd unit file
+  ansible.builtin.set_fact:
+    _network_create_changed: false
+    _network_systemd_unit_file: "{{ network.name ~ '-network.service' }}"
 
-#- name: reset _network_create_changed for {{ _network.name }}
-#  ansible.builtin.set_fact:
-#    _network_create_changed: false
-# Necessary??
-
-- name: Include podman_init_vars.yml from sleif.podman
+- name: Podman_network_create | Include podman_init_vars.yml from sleif.podman
   ansible.builtin.include_tasks: "{{ lookup('first_found', params) }}"
   vars:
     params:
       files: sleif.podman/tasks/includes/podman_init_vars.yml
       paths: "{{ lookup('config', 'DEFAULT_ROLES_PATH') }}"
 
-- name: Network create block
+- name: Podman_network_create | Network create block
   become: "{{ podman_rootless | d(true) | bool }}"
   become_user: "{{ podman_user if podman_rootless | d(true) | bool else omit }}"
   tags:
     - podman_network_create
   environment:
-    XDG_RUNTIME_DIR: "{{ _xdg_runtime_dir if podman_rootless | d(true) | bool else omit }}"
+    XDG_RUNTIME_DIR: "{{ _xdg_runtime_dir }}"
+    # XDG_RUNTIME_DIR: "{{ _xdg_runtime_dir if podman_rootless | d(true) | bool else omit }}"
   block:
-    - name: Podman network create {{ podman_network_name }}
+    - name: Podman_network_create | Set_fact _quadlet_options_defaults
+      ansible.builtin.set_fact:
+        _quadlet_options_defaults: []
+
+    - name: Podman_network_create | Podman network create {{ network.name }}
       containers.podman.podman_network:
-        name: "{{ podman_network_name }}"
-        driver: 'bridge'
-        internal: "{{ podman_network_internal | d(false) }}"
-        # ip_range: "{{ podman_network_iprange }}"
-        subnet: "{{ podman_network_subnet }}"
-        gateway: "{{ podman_network_gateway }}"
-        disable_dns: "{{ podman_network_disabledns | d(false) }}"
-        ipv6: "{{ podman_network_ipv6 | d(false) }}"
+        name: "{{ network.name }}"
+        driver: "{{ network.driver | d('bridge') }}"
+        interface_name: "{{ network.interface_name | d(omit) }}"
+        internal: "{{ network.internal | d(omit) }}"
+        ip_range: "{{ network.ip_range | d(omit) }}"
+        subnet: "{{ network.subnet }}"
+        gateway: "{{ network.gateway }}"
+        disable_dns: "{{ network.disabledns | d(omit) }}"
+        ipv6: "{{ network.ipv6 | d(omit) }}"
+        quadlet_options: "{{ network.quadlet_options | default(_quadlet_options_defaults) }}"
         # recreate: true
         state: quadlet
-      register: _quadlet_file_status
+      register: _network_create_quadlet
 
-    - name: Start the systemd network unit in proper context
-      ansible.builtin.systemd_service:
-        name: "{{ podman_network_name ~ '-network' }}"
+    - name: Podman_network_create | Enumerate _container_create_changed for {{ network.name }}
+      ansible.builtin.set_fact:
+        _network_create_changed: "{{ true if _network_create_changed | d(false) | bool or _network_create_quadlet.changed | bool else false }}"
+
+    - name: Podman_network_create | Debug _network_create_changed for {{ network.name }}
+      ansible.builtin.debug:
+        msg: "network creation for {{ network.name }} has{{ _network_create_changed | bool | ternary('', ' not') }} changed."
+      changed_when:
+        - _network_create_changed | bool
+
+    - name: Podman_network_create | Gather service facts
+      ansible.builtin.systemd:
+        name: "{{ _network_systemd_unit_file }}"
         daemon_reload: true
         scope: "{{ _systemd_scope }}"
-        state: "started"
+      register: _podman_container_systemd_state
+
+    - name: Podman_network_create | Generate _target_state from _network_info
+      ansible.builtin.set_fact:
+        _target_state: "{{ _podman_container_systemd_state.status.ActiveState | lower }}"
+
+    - name: Podman_network_create | Start/restart systemd service for {{ _network_systemd_unit_file }}
+      ansible.builtin.systemd_service:
+        name: "{{ _network_systemd_unit_file }}"
+        daemon_reload: true
+        # enabled: true
+        scope: "{{ _systemd_scope }}"
+        state: "{{ 'restarted' if _target_state != 'active' or _network_create_changed | d(false) | bool else 'started' }}"
+      register: _podman_container_systemd_state
