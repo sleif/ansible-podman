@@ -111,6 +111,7 @@
         podman_operation: podman_image_pull
         image_name: "{{ item.name }}"
         image_tag: "{{ item.tag }}"
+        image_tags_to_remove: "{{ item.tags_to_remove | d([]) }}"
 
     - name: enumerate _container_create_changed for {{ _container.name }}
       ansible.builtin.set_fact:
