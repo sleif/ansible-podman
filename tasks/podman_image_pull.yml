@@ -33,7 +33,7 @@
       when:
         - image_tag | d('') is truthy
       block:
-        - name: Podman_Image_CRUD | enumerate _image_pull_changed
+        - name: Podman_Image_CRUD | enumerate _quadlet_basename
           ansible.builtin.set_fact:
             _quadlet_basename: "{{ image_name | replace('/', '__') ~ '__' ~ image_tag }}"
 

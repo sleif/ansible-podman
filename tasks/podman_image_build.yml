@@ -28,6 +28,10 @@
         mode: "0600"
       register: _containerfile_status
 
+    - name: enumerate _image_pull_service
+      ansible.builtin.set_fact:
+        _image_pull_service: "{{ _image_name | replace('/', '__') ~ '__' ~ _image_tag ~ '-image.service' }}"
+
     - name: Enumerate _build_restart_required for {{ _container_name }}
       ansible.builtin.set_fact:
         _build_restart_required: "{{ true if _build_restart_required | d(false) | bool or _containerfile_status.changed | bool else false }}"
@@ -38,9 +42,13 @@
       ansible.builtin.copy:
         dest: "{{ _quadlet_files_dir }}/{{ _container_name }}.build"
         content: |-
+          [Unit]
+          Requires={{ _image_pull_service }}
+          After={{ _image_pull_service }}
           [Build]
           File={{ _container_storage_dir_base_local }}/build/{{ _container_name }}/Containerfile
           ImageTag=localhost__{{ _image_name }}:{{ _image_tag }}
+          Pull=newer
           [Service]
           {% if _build_dir is truthy %}
           {{ 'Environment="TMPDIR=' ~ _build_dir ~ '"' }}

@@ -44,6 +44,19 @@
     # - debug: var=_target_state
     # - pause:
 
+    - name: Podman systemd restart pod or container | start systemd service for {{ target_container | d('...') }}
+      environment:
+        XDG_RUNTIME_DIR: "{{ _xdg_runtime_dir }}"
+      ansible.builtin.systemd_service:
+        name: "{{ target_container }}"
+        daemon_reload: true
+        # enabled: true
+        scope: "{{ _systemd_scope }}"
+        state: "started"
+      # register: _podman_container_systemd_state
+      when:
+        - target_container | d('') is truthy
+
     - name: Podman systemd restart pod or container | start/restart systemd service for {{ target ~ '-pod' if _pod_info.pods | length > 0 else target }}
       environment:
         XDG_RUNTIME_DIR: "{{ _xdg_runtime_dir }}"

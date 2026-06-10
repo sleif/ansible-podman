@@ -159,8 +159,10 @@
             TimeoutStartSec=900
             [Install]
             WantedBy=default.target
-            {{ '[Unit]
-            PartOf=' ~ _container.name ~ '.socket' if podman_sockets is defined else '' }}
+            {{ '[Unit]' if podman_sockets is defined or _container.build_required | d(false) | bool else '' }}
+            {{ 'PartOf=' ~ _container.name ~ '.socket' if podman_sockets is defined else '' }}
+            {{ '# Requires=' ~ _container.name ~ '-build.service' if _container.build_required | d(false) | bool else '' }}
+            {{ 'After=' ~ _container.name ~ '-build.service' if _container.build_required | d(false) | bool else '' }}
 
     - name: Create container {{ _container.image.name }} as {{ _container.hostname | d(_container.name) }}
       become: "{{ podman_rootless | d(true) | bool }}"
@@ -214,6 +216,8 @@
       vars:
         podman_operation: podman_systemd_restart_pod_or_container
         target: "{{ pod_name if pod_name | d('') is truthy else container_name }}"
+        target_container: "{{ container_name }}"
+        target_pod: "{{ pod_name if pod_name | d('') is truthy else omit }}"
         quadlet: "{{ _container_create_quadlet }}"
 
     - name: Include role sleif.podman podman_operation podman_image_pull to cleanup old images of {{ _container.image.name }}
