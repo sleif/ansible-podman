@@ -13,15 +13,15 @@ podman_user_home: "{{ container_storage_dir_base_local + '/' + podman_user }}"
 # podman_subgid_range: "300000:65536"
 
 podman_packages:
-  - aardvark-dns
+  # - aardvark-dns
   - bash-completion
-  - conmon
-  - container-selinux
-  - crun
-  - fuse-overlayfs
-  - netavark
+  # - conmon
+  # - container-selinux
+  # - crun
+  # - fuse-overlayfs
+  # - netavark
   - podman
-  - podman-plugins
+  # - podman-plugins
   - shadow-utils
   - slirp4netns
   - passt
