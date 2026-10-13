@@ -35,3 +35,19 @@
     #   else __podman_rootless | ternary('user', 'system') }}"
   changed_when: false
   tags: always
+
+- name: Podman | podman_init_vars | debug facts
+  ansible.builtin.debug:
+    msg:
+      _container_storage_dir_base_local: "{{ _container_storage_dir_base_local }}"
+      _container_storage_dir_base: "{{ _container_storage_dir_base }}"
+      _group: "{{ _group }}"
+      _owner: "{{ _owner }}"
+      _systemd_scope: "{{ _systemd_scope }}"
+      _system_prune: "{{ _system_prune }}"
+      _system_prune_min_free_gb: "{{ _system_prune_min_free_gb }}"
+      _quadlet_files_dir: "{{ _quadlet_files_dir }}"
+      _systemd_service_files_dir: "{{ _systemd_service_files_dir }}"
+      _xdg_runtime_dir: "{{ _xdg_runtime_dir }}"
+  changed_when: false
+  tags: always
