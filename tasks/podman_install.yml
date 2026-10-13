@@ -3,11 +3,20 @@
 # net.core.rmem_max = 2500000
 
 # latest podman from here: enable copr.fedorainfracloud.org rhcontainerbot podman-next
-- name: Install and update podman  # noqa: package-latest
+- name: Install and update podman (dnf)  # noqa: package-latest
   ansible.builtin.dnf:
-    name: "{{ podman_packages }}"
+    name: "{{ podman_packages_dnf }}"
     # enablerepo: "copr:copr.fedorainfracloud.org:rhcontainerbot:podman-next"
     state: latest
+  when:
+    - ansible_facts.os_family == 'RedHat'
+
+- name: Install and update podman (apt)  # noqa: package-latest
+  ansible.builtin.apt:
+    name: "{{ podman_packages_apt }}"
+    state: latest
+  when:
+    - ansible_facts.os_family == 'Debian'
 
 - name: Install podman | Setup bash completion
   ansible.builtin.command: podman completion -f /etc/bash_completion.d/podman bash
@@ -77,11 +86,14 @@
     substitute: /var/lib/containers
     state: present
   register: _container_dir_substitute
+  when:
+    - ansible_facts.os_family == 'RedHat'
 
 - name: Install podman | Run restore context for .local/share/containers with /var/lib/containers to reload selinux
   ansible.builtin.command:
     cmd: restorecon -F -R -v {{ podman_user_home + '/.local/share/containers' }}
   when:  # noqa: no-handler
+    - ansible_facts.os_family == 'RedHat'
     - _container_dir_substitute.changed | bool or _container_dir.changed | bool
     - ansible_selinux and ansible_selinux.status == "enabled"
   register: _result
@@ -116,7 +128,9 @@
   register: filecontext
   with_items:
     - {target: '{{ podman_user_home }}(/.+)?', setype: 'user_home_dir_t', state: 'present'}
-  when: ansible_facts.selinux is truthy and ansible_facts.selinux.status == "enabled"
+  when:
+    - ansible_facts.os_family == 'RedHat'
+    - ansible_facts.selinux is truthy and ansible_facts.selinux.status == "enabled"
 
 # - ansible.builtin.debug:
 #     msg: "{{ filecontext.results[0] }}"
@@ -127,6 +141,7 @@
   with_items:
     - {index: 0, target: '{{ podman_user_home }}'}
   when:  # noqa: no-handler
+    - ansible_facts.os_family == 'RedHat'
     - filecontext.results[item.index] is changed
     - ansible_selinux and ansible_selinux.status == "enabled"
   register: _result
@@ -207,7 +222,7 @@
 # (unfortunately, no loop over block possible)
 - name: Add changed ImageCopyTmpDir (if defined)
   block:
-    - name: Ensure direcories exists
+    - name: Ensure directories exists
       when: item.dest != ''
       ansible.builtin.file:
         path: "{{ item.dest }}"
@@ -322,5 +337,6 @@
     reload: true
     sysctl_file: /etc/sysctl.d/podman.conf
   loop:
+    - {name: "net.ipv4.ip_unprivileged_port_start", value: "80"}
     - {name: "net.core.rmem_max", value: "{{ net_core_rmem_max }}"}
     - {name: "net.core.wmem_max", value: "{{ net_core_wmem_max }}"}

@@ -12,7 +12,20 @@ podman_user_home: "{{ container_storage_dir_base_local + '/' + podman_user }}"
 # podman_subuid_range: "300000:65536"
 # podman_subgid_range: "300000:65536"
 
-podman_packages:
+podman_packages_apt:
+  # - aardvark-dns
+  - bash-completion
+  # - conmon
+  # - container-selinux
+  # - crun
+  # - fuse-overlayfs
+  # - netavark
+  - podman
+  - podman-compose
+  # - podman-plugins
+  - passt
+
+podman_packages_dnf:
   # - aardvark-dns
   - bash-completion
   # - conmon
