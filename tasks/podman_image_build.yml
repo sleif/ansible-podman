@@ -49,6 +49,8 @@
           File={{ _container_storage_dir_base_local }}/build/{{ _container_name }}/Containerfile
           ImageTag=localhost__{{ _image_name }}:{{ _image_tag }}
           Pull=newer
+          [Install]
+          WantedBy=default.target
           [Service]
           {% if _build_dir is truthy %}
           {{ 'Environment="TMPDIR=' ~ _build_dir ~ '"' }}
